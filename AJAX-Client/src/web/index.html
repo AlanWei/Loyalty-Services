@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<!--
+To change this license header, choose License Headers in Project Properties.
+To change this template file, choose Tools | Templates
+and open the template in the editor.
+-->
+<html>
+    <head>
+        <title>Loyalty Service</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="style.css" type="text/css" />
+        <link rel="stylesheet" href="forms.css" type="text/css" />
+        <script src="angular.js"></script>
+        <script src="angular-resource.js"></script>
+        <script src="JsBarcode.all.min.js"></script>
+        <script type="text/javascript">
+            /* === domain classes === */
+            function Coupon(id, points, customerID) {
+                this.id = id;
+                this.points = points;
+                this.used = false;
+                this.customerID = customerID;
+            }
+
+            function Product(couponId, price) {
+                this.source_id = couponId;
+                this.handle = couponId;
+                this.type = "Coupon";
+                this.tags = "coupon";
+                this.name = "Coupon " + couponId;
+                this.description = "Coupon " + couponId;
+                this.sku = couponId;
+                this.retail_price = price;
+            }
+
+            function CouponAndCustomer(couponID, customerID) {
+                this.coupon_id = couponID;
+                this.customer_id = customerID;
+            }
+
+
+            // create the module, and load the ngResource (REST stubs) module
+            var module = angular.module('LoyaltyApp', ['ngResource']);
+
+            // create the controller and inject the Angular features that we need
+            module.controller('LoyaltyController', function($scope, $resource) {
+
+                // resource object to get the points
+                var unusedPointsResource = $resource('http://localhost\\:8081/customers/:customer/points/unused', null, {
+                    'getPoints': {transformResponse: function(data, headers, status) {
+                            return {value: data};
+                        }
+                    }});
+
+                /* this is only one websocket - you will need another for creating the product */
+
+                var emailWS = new WebSocket("ws://localhost:9091/email");
+
+                $scope.userEmail = "";
+                $scope.customerId = "";
+                $scope.customerName = "";
+
+                emailWS.onmessage = function(event) {
+                    // unmarshal the customer from JSON and insert the details into the form
+                    var customersArray = JSON.parse(event.data);
+                    var customer = customersArray.customers[0];
+                    $scope.customerId = customer.id;
+                    $scope.customerName = customer.name;
+
+                    document.getElementById("customer_id").value = $scope.customerId;
+                    document.getElementById("customer_name").value = $scope.customerName;
+
+                    unusedPointsResource.getPoints({"customer": $scope.customerId}, function(data) {
+                        var points = data.value;
+
+                        document.getElementById("point_balance").value = points;
+                    });
+                };
+
+                emailWS.onopen = function(event) {
+                    //alert("ready to use!");
+                };
+
+                emailWS.onerror = function(event) {
+                    alert(event.data);
+                };
+
+                emailWS.onclose = function(event) {
+                    alert("Connection to service has timed out.  Reload the page to continue.");
+                };
+
+                $scope.login = function() {
+                    // get the email and send it via the websocket
+                    var emailAddress = $scope.userEmail;
+                    emailWS.send(emailAddress);
+                };
+
+                var couponWS = new WebSocket("ws://localhost:9091/coupon");
+
+                couponWS.onmessage = function(event) {
+                    console.log(event.data);
+                };
+
+                couponWS.onopen = function(event) {
+                    //alert("ready to use!");
+                };
+
+                couponWS.onerror = function(event) {
+                    alert(event.data);
+                };
+
+                couponWS.onclose = function(event) {
+                    alert("Connection to service has timed out.  Reload the page to continue.");
+                };
+
+                var couponVendWS = new WebSocket("ws://localhost:9091/couponvend");
+
+                couponVendWS.onmessage = function(event) {
+                    console.log(event.data);
+                };
+
+                couponVendWS.onopen = function(event) {
+                    //alert("ready to use!");
+                };
+
+                couponVendWS.onerror = function(event) {
+                    alert(event.data);
+                };
+
+                couponVendWS.onclose = function(event) {
+                    alert("Connection to service has timed out.  Reload the page to continue.");
+                };
+
+                var productVendWS = new WebSocket("ws://localhost:9091/productvend");
+
+                productVendWS.onmessage = function(event) {
+                    var productsArray = JSON.parse(event.data);
+                    var pArray = [];
+
+                    for (i = 0; i < productsArray.register_sale_products.length; i++) {
+                        var product = productsArray.register_sale_products[i];
+                        pArray.push(product);
+                    }
+
+                    for (j = 0; j < pArray.length; j++) {
+                        var productID = pArray[j].product_id;
+
+                        productVendWS.send(productID);
+                    }
+                };
+
+                productVendWS.onopen = function(event) {
+                    //alert("ready to use!");
+                };
+
+                productVendWS.onerror = function(event) {
+                    alert(event.data);
+                };
+
+                productVendWS.onclose = function(event) {
+                    alert("Connection to service has timed out.  Reload the page to continue.");
+                };
+
+                var couponPutWS = new WebSocket("ws://localhost:9091/couponput");
+
+                couponPutWS.onmessage = function(event) {
+                    console.log(event.data);
+                };
+
+                couponPutWS.onopen = function(event) {
+                    //alert("ready to use!");
+                };
+
+                couponPutWS.onerror = function(event) {
+                    alert(event.data);
+                };
+
+                couponPutWS.onclose = function(event) {
+                    alert("Connection to service has timed out.  Reload the page to continue.");
+                };
+
+                var deleteCouponWS = new WebSocket("ws://localhost:9091/coupondelete");
+
+                deleteCouponWS.onmessage = function(event) {
+                    console.log(event.data);
+                };
+
+                deleteCouponWS.onopen = function(event) {
+                    //alert("ready to use!");
+                };
+
+                deleteCouponWS.onerror = function(event) {
+                    alert(event.data);
+                };
+
+                deleteCouponWS.onclose = function(event) {
+                    alert("Connection to service has timed out.  Reload the page to continue.");
+                };
+
+                var validateproductWS = new WebSocket("ws://localhost:9091/validate");
+
+                $scope.couponPrice = -1;
+
+                validateproductWS.onmessage = function(event) {
+                    //
+                    var productArray = JSON.parse(event.data);
+
+                    var product = productArray.products[0];
+
+                    if (product.type === "Coupon") {
+                        $scope.couponPrice = 0 - (product.price + product.tax);
+                        var couponID = product.source_id;
+                        var id = product.id;
+
+                        validateproductWS.send($scope.customerName + " saved $" + $scope.couponPrice + ".");
+
+                        var cc = new CouponAndCustomer(couponID, $scope.customerId);
+
+                        var json = JSON.stringify(cc);
+                        couponPutWS.send(json);
+                        deleteCouponWS.send(id);
+                    }
+                };
+
+                validateproductWS.onopen = function(event) {
+                    //alert("ready to use!");
+                };
+
+                validateproductWS.onerror = function(event) {
+                    alert(event.data);
+                };
+
+                validateproductWS.onclose = function(event) {
+                    alert("Connection to service has timed out.  Reload the page to continue.");
+                };
+
+                $scope.pointsToUse = "";
+                $scope.couponID = -1;
+
+                $scope.createCoupon = function() {
+                    //
+                    //couponWS.send($scope.pointsToUse);
+                    if (document.getElementById("point_balance").value > 0 && document.getElementById("point_balance").value >= $scope.pointsToUse) {
+                        $scope.couponID = Math.floor(new Date().getTime() / 1000);
+
+                        var coupon = new Coupon($scope.couponID, $scope.pointsToUse, $scope.customerId);
+
+                        var json = JSON.stringify(coupon);
+
+                        couponWS.send(json);
+
+                        var price = 0 - $scope.pointsToUse;
+
+                        var product = new Product($scope.couponID, price);
+
+                        var json2 = JSON.stringify(product);
+
+                        couponVendWS.send(json2);
+
+                        var barcode = document.getElementById("barcode");
+                        JsBarcode(barcode, $scope.couponID.toString(), {displayValue: true, backgroundColor: "white", width: "1"});
+                    }
+                    else {
+                        alert("Not enough points!");
+                    }
+                };
+            });
+        </script>
+    </head>
+    <body>
+        <div ng-app="LoyaltyApp" ng-controller="LoyaltyController" id="content">
+            <h1>Loyalty Service</h1>
+            <div>
+                <div id="login">
+                    <h2 style="margin: 10px 0;">Login</h2>
+                    <form>
+                        Email Address: <input type="text" placeholder="Enter your email here..." ng-model="userEmail" style="width: 100%">
+                    </form>
+                    <div style="text-align: center">
+                        <button ng-click="login()" style="font-size: 16px; margin-top: 5px; margin-bottom: 5px;">Login</button>
+                    </div>
+                </div>
+
+                <hr>
+
+                <div id="details">
+                    <h2 style="margin: 10px 0;">Your Details</h2>
+                    <form>
+                        Rewards ID: <input type="text" style="width: 100%" id="customer_id">
+                        Name: <input type="text" style="width: 100%" id="customer_name">
+                    </form>
+                </div>
+
+                <hr>
+
+                <div id="coupon">
+                    <h2 style="margin: 10px 0;">Create a Coupon</h2>
+                    <form>
+                        <div>
+                            Available points: <input type="text" style="width: 100%" id="point_balance">
+                        </div>
+                        <div>
+                            Points to use: <input type="text" style="width: 100%" id="point_to_use" ng-model="pointsToUse">
+                        </div>
+                        <div>
+                            Equivalent to $: <input type="text" style="width: 100%" id="point_equi" ng-model="pointsToUse">
+                        </div>
+                    </form>
+                    <div style="text-align: center;">
+                        <button style="font-size: 16px; margin-top: 5px; margin-bottom: 5px;" ng-click="createCoupon()">Create coupon</button>
+                    </div>
+                </div>
+
+                <hr>
+
+                <div style="text-align: center">
+                    <img id="barcode">
+                </div>
+
+            </div>
+        </div>
+    </body>
+</html>
